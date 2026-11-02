@@ -45,7 +45,7 @@ function App(){
  const [journalTitle,setJournalTitle]=useState('');
  const [showNewJournal,setShowNewJournal]=useState(false);
  const [activeDua,setActiveDua]=useState(null);
- const [hadithBook,setHadithBook]=useState('all');
+ const [hadithBook,setHadithBook]=useState('bukhari');
  const [hadithData,setHadithData]=useState([]);
  const [hadithSections,setHadithSections]=useState({});
  const [hadithSectionsEn,setHadithSectionsEn]=useState({});
