@@ -1,8 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import * as pdfjsLib from 'pdfjs-dist';
-import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
-pdfjsLib.GlobalWorkerOptions.workerSrc=pdfWorker;
 import {
   Home, BookOpen, Clock3, Compass, Heart, Headphones, Bookmark, Search, Settings,
   Moon, Sun, Menu, X, ChevronRight, ChevronLeft, Play, Pause, RotateCcw, Plus,
@@ -178,60 +175,7 @@ function QuranPage({isBn,search,setSearch,bookmarks,addBookmark,openReader}){
  {tab==='surah'?<div className="surah-list">{filtered.map(s=><div className="surah-row" key={s.id}><button className="surah-main" onClick={()=>openReader(s.page,s.id)}><span className="surah-num">{String(s.id).padStart(3,'0')}</span><span className="surah-titles"><b>{s.bn}</b><small>{s.en} · {s.verses} আয়াত · {s.revelation==='Makki'?'মাক্কী':'মাদানী'}</small></span><span className="surah-ar">{s.ar}</span></button><button className={`mini-bookmark ${bookmarks.includes(s.page)?'saved':''}`} onClick={()=>addBookmark(s.page)}><Bookmark size={16}/></button></div>)}</div>:<div className="surah-list">{bookmarks.map(p=><button className="surah-row saved-row" key={p} onClick={()=>openReader(p)}><span className="surah-num">{p}</span><b>পৃষ্ঠা {p}</b><ChevronRight size={17}/></button>)}{!bookmarks.length&&<div className="empty">এখনো কোনো বুকমার্ক নেই।</div>}</div>}
  </>;
 }
-function ReaderPage({page,setPage,surah,selectedSurah,bookmarks,addBookmark,goBack}){
- const [pdf,setPdf]=useState(null);
- const [pdfLoading,setPdfLoading]=useState(true);
- const [pdfError,setPdfError]=useState('');
- const canvasRef=useRef(null);
- const directPdfUrl=`${A}Imdadia-Hafezi-Quran.pdf#page=${page}`;
- useEffect(()=>{
-   let cancelled=false;
-   const loadingTask=pdfjsLib.getDocument({url:`${A}Imdadia-Hafezi-Quran.pdf`,disableRange:true,disableStream:true});
-   loadingTask.promise.then(document=>{
-     if(cancelled){document.destroy();return}
-     setPdf(document);
-   }).catch(error=>{
-     console.error('Quran PDF failed to load',error);
-     if(!cancelled){setPdfError('PDF লোড করা যায়নি। আলাদা ট্যাবে খুলে দেখুন।');setPdfLoading(false)}
-   });
-   return()=>{cancelled=true;loadingTask.destroy()};
- },[]);
- useEffect(()=>{
-   if(!pdf||!canvasRef.current)return;
-   let cancelled=false,renderTask;
-   setPdfLoading(true);setPdfError('');
-   const renderPage=async()=>{
-     try{
-       const pdfPage=await pdf.getPage(page);
-       if(cancelled)return;
-       const canvas=canvasRef.current;
-       if(!canvas)return;
-       const containerWidth=canvas.parentElement?.clientWidth||600;
-       const baseViewport=pdfPage.getViewport({scale:1});
-       const scale=Math.min(Math.max((containerWidth-24)/baseViewport.width,0.5),1.8);
-       const viewport=pdfPage.getViewport({scale});
-       const pixelRatio=Math.min(window.devicePixelRatio||1,2);
-       canvas.width=Math.ceil(viewport.width*pixelRatio);
-       canvas.height=Math.ceil(viewport.height*pixelRatio);
-       canvas.style.width=`${viewport.width}px`;
-       canvas.style.height=`${viewport.height}px`;
-       const context=canvas.getContext('2d',{alpha:false});
-       if(!context)throw new Error('Canvas unavailable');
-       renderTask=pdfPage.render({canvasContext:context,viewport,transform:pixelRatio!==1?[pixelRatio,0,0,pixelRatio,0,0]:null});
-       await renderTask.promise;
-       if(!cancelled)setPdfLoading(false);
-     }catch(error){
-       if(cancelled||error?.name==='RenderingCancelledException')return;
-       console.error('Quran page render failed',error);
-       setPdfError('এই পৃষ্ঠা render করা যায়নি। PDF আলাদা ট্যাবে খুলুন।');
-       setPdfLoading(false);
-     }
-   };
-   renderPage();
-   return()=>{cancelled=true;renderTask?.cancel()};
- },[pdf,page]);
- return <><div className="reader-toolbar"><button className="btn subtle" onClick={goBack}><ArrowLeft size={16}/> ফিরে যান</button><div className="reader-meta"><b>{selectedSurah?surah.bn+' · '+surah.ar:'ইমদাদিয়া হাফেজি কুরআন'}</b><small>পৃষ্ঠা {page} / ৬১৪</small></div><button className={`icon-btn ${bookmarks.includes(page)?'is-saved':''}`} onClick={()=>addBookmark(page)}><Bookmark size={18}/></button></div><div className="pdf-actions"><a className="btn subtle" href={directPdfUrl} target="_blank" rel="noreferrer"><ExternalLink size={15}/> PDF আলাদা ট্যাবে খুলুন</a></div><div className="pdf-frame">{pdfError?<div className="pdf-status">{pdfError}</div>:<><canvas ref={canvasRef} className="pdf-canvas" aria-label={`কুরআন পৃষ্ঠা ${page}`}/>{pdfLoading&&<div className="pdf-status">কুরআনের পৃষ্ঠা লোড হচ্ছে…</div>}</>}</div><div className="reader-controls"><button className="btn subtle" disabled={page<=1} onClick={()=>setPage(page-1)}><ChevronLeft/> আগের পৃষ্ঠা</button><label>পৃষ্ঠা <input type="number" min="1" max="614" value={page} onChange={e=>setPage(Math.max(1,Math.min(614,Number(e.target.value)||1)))}/></label><button className="btn subtle" disabled={page>=614} onClick={()=>setPage(page+1)}>পরের পৃষ্ঠা <ChevronRight/></button></div><p className="hint">PDF দেখা না গেলে আলাদা ট্যাবে খুলুন।</p></>;
-}
+function ReaderPage({page,setPage,surah,selectedSurah,bookmarks,addBookmark,goBack}){const directPdfUrl=A+'Imdadia-Hafezi-Quran.pdf#page='+page;const viewerUrl='https://docs.google.com/gview?embedded=1&url='+encodeURIComponent(new URL(A+'Imdadia-Hafezi-Quran.pdf',window.location.href).href);return <><div className="reader-toolbar"><button className="btn subtle" onClick={goBack}><ArrowLeft size={16}/> ফিরে যান</button><div className="reader-meta"><b>{selectedSurah?surah.bn+' · '+surah.ar:'ইমদাদিয়া হাফেজি কুরআন'}</b><small>৬১৪ পৃষ্ঠার মুশাফ · পৃষ্ঠা বাছাই viewer-এর ভেতরে</small></div><button className={`icon-btn ${bookmarks.includes(page)?'is-saved':''}`} onClick={()=>addBookmark(page)}><Bookmark size={18}/></button></div><div className="pdf-actions"><a className="btn subtle" href={directPdfUrl} target="_blank" rel="noreferrer"><ExternalLink size={15}/> মূল PDF আলাদা ট্যাবে খুলুন</a></div><div className="pdf-frame"><iframe title="ইমদাদিয়া হাফেজি কুরআন" src={viewerUrl} loading="eager" allow="fullscreen"/></div><p className="hint">এই reader-এর পৃষ্ঠা নম্বর ও zoom Google viewer-এর toolbar থেকে নিয়ন্ত্রণ করুন। PDF আলাদা ট্যাবেও খোলা যাবে।</p></>}
 function PrayerPage({prayer,location,locate}){
  const times=['Fajr','Sunrise','Dhuhr','Asr','Maghrib','Isha'];const labels=['ফজর','সূর্যোদয়','যোহর','আসর','মাগরিব','ইশা'];
  return <><PageHead eyebrow="SALAH · DAILY" title="নামাজের সময়" desc="আপনার অবস্থান অনুযায়ী আজকের নামাজের সময়।" action={<button className="btn primary" onClick={locate}><MapPin size={16}/> অবস্থান নিন</button>}/>{!location&&<div className="notice">নামাজের সময় দেখাতে আপনার অবস্থানের অনুমতি দিন।</div>}<div className="prayer-date"><CalendarDays size={18}/><div><b>{prayer?.date?.readable||new Date().toLocaleDateString('bn-BD',{dateStyle:'full'})}</b><small>{prayer?.date?.hijri?.date||'হিজরি তারিখ লোড হচ্ছে'}</small></div></div><div className="prayer-grid">{times.map((t,i)=><div className={`prayer-card ${t==='Fajr'?'highlight':''}`} key={t}><span>{labels[i]}</span><b>{prayer?.timings?.[t]?.split(' ')[0]||'--:--'}</b><small>{t}</small></div>)}</div><p className="hint">সময় AlAdhan API থেকে গণনা করে দেখানো হয়। স্থানীয় মসজিদের সময়ের সঙ্গে সামান্য পার্থক্য হতে পারে।</p></>;
