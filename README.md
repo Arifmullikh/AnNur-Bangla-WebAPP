@@ -11,7 +11,7 @@ The supplied Android app is **native Kotlin + Jetpack Compose** (`com.annur.qura
 - Original 614-page Imdadia Hafezi Quran PDF embedded in the reader
 - Local browser bookmarks and last-read page
 - Prayer-time lookup using AlAdhan API (requires location permission and internet)
-- Qibla bearing calculation using browser geolocation; device compass heading is best-effort and browser-dependent
+- Qibla compass is omitted because browser device-orientation support is inconsistent across devices
 - Tasbih counter, goal, Khatam tracker and private local journal (localStorage)
 - Bundled Sunnah, Ruqyah, Muslim names and fallback Hadith data
 - Streaming recitation for Mishary Alafasy (internet required)
