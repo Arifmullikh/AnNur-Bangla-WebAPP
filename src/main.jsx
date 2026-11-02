@@ -138,6 +138,7 @@ function HomePage({isBn,go,openReader,lastPage,prayer,location,locate,tasbih,kha
  const isBn=lang==='bn';
  const [items,setItems]=useState([]);
  const [status,setStatus]=useState('loading');
+ const [attempt,setAttempt]=useState(0);
  const bookNames={bukhari:['সহীহ বুখারী','Sahih al-Bukhari'],muslim:['সহীহ মুসলিম','Sahih Muslim'],abudawud:['সুনান আবু দাউদ','Sunan Abi Dawud'],tirmidhi:['জামে আত-তিরমিযী','Jami at-Tirmidhi'],nasai:['সুনান আন-নাসাঈ','Sunan an-Nasa’i'],ibnmajah:['সুনান ইবনে মাজাহ','Sunan Ibn Majah']};
  const bookIds=Object.keys(bookNames);
  const sectionMap=sections?.[book]||{};
@@ -158,21 +159,21 @@ function HomePage({isBn,go,openReader,lastPage,prayer,location,locate,tasbih,kha
      const arabicByNo=new Map((arabic.hadiths||[]).map(h=>[String(h.hadithnumber),h.text]));
      const result=(translation.hadiths||[]).map(h=>({number:h.hadithnumber,arabic:arabicByNo.get(String(h.hadithnumber))||'',text:h.text||'',reference:h.reference||null,grades:h.grades||[]}));
      if(!result.length)throw new Error('empty');
-     if(!cancelled){setItems(result);setStatus('ready');saveStore(cacheKey,result)}
+     if(!cancelled){setItems(result);setStatus('ready');try{saveStore(cacheKey,result)}catch{}}
    }).catch(()=>{
      if(cancelled)return;
      const localFallback=book==='bukhari'&&activeSection==='1'?(fallback||[]).filter(h=>h.book==='bukhari').map(h=>({number:h.n,arabic:h.ara||'',text:isBn?h.ben:h.eng,reference:{book:1,hadith:h.n},grades:[]})):[];
      if(localFallback.length){setItems(localFallback);setStatus('fallback')}else setStatus('error');
    });
    return()=>{cancelled=true};
- },[book,activeSection,edition,fallback,isBn]);
+ },[book,activeSection,edition,fallback,isBn,attempt]);
  const filtered=items.filter(h=>`${h.text} ${h.arabic} ${h.number}`.toLowerCase().includes(search.trim().toLowerCase()));
  return <><PageHead eyebrow="HADITH COLLECTION" title={isBn?'হাদিস':'Hadith'} desc={isBn?'ছয়টি হাদিসগ্রন্থ · বাংলা ও English অনুবাদ':'Six collections · Bengali and English translations'}/>
  <div className="chips">{bookIds.map(id=><button className={book===id?'chip active':'chip'} onClick={()=>{setBook(id);setSearch('')}} key={id}>{bookNames[id][isBn?0:1]}</button>)}</div>
  <div className="hadith-controls"><label>{isBn?'অধ্যায়':'Chapter'}<select value={activeSection} onChange={e=>setSection(e.target.value)}>{sectionIds.map(id=><option key={id} value={id}>{isBn?sectionMap[id]:(sectionsEn?.[book]?.sections?.find(x=>String(x[0])===id)?.[1]||'Chapter '+id)}</option>)}</select></label></div>
  <div className="searchbox"><Search size={17}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder={isBn?'হাদিস খুঁজুন...':'Search hadith...'}/></div>
  {status==='loading'&&<div className="empty">{isBn?'হাদিস লোড হচ্ছে...':'Loading hadith...'}</div>}
- {status==='error'&&<div className="empty">{isBn?'হাদিস আনতে ইন্টারনেট সংযোগ প্রয়োজন। আবার চেষ্টা করুন।':'Could not load hadith. Check your internet connection and retry.'}<button className="text-btn" onClick={()=>{setStatus('loading');setItems([]);setSection(activeSection)}}>{isBn?'আবার চেষ্টা':'Retry'}</button></div>}
+ {status==='error'&&<div className="empty">{isBn?'হাদিস আনতে ইন্টারনেট সংযোগ প্রয়োজন। আবার চেষ্টা করুন।':'Could not load hadith. Check your internet connection and retry.'}<button className="text-btn" onClick={()=>{setStatus('loading');setItems([]);setAttempt(v=>v+1)}}>{isBn?'আবার চেষ্টা':'Retry'}</button></div>}
  {status==='fallback'&&<div className="notice">{isBn?'API পাওয়া যায়নি; সীমিত offline sample দেখানো হচ্ছে।':'API unavailable; showing the limited offline sample.'}</div>}
  <div className="data-list">{filtered.map((h,i)=><article className="verse-card" key={h.number+'-'+i}><div className="card-topline"><b>{bookNames[book][isBn?0:1]} · #{h.number}</b><span>{isBn?'হাদিস':'Hadith'}</span></div>{h.arabic&&<p className="arabic-text" dir="rtl">{h.arabic}</p>}<p>{h.text}</p><small>{isBn?'সূত্র':'Reference'}: {bookNames[book][isBn?0:1]} {h.number}</small></article>)}{status==='ready'&&!filtered.length&&<div className="empty">{isBn?'খোঁজার সঙ্গে মেলে এমন হাদিস পাওয়া যায়নি।':'No hadith matched your search.'}</div>}</div>
  <p className="hint">{isBn?'সূত্র: Fawaz Ahmed Hadith API · অধ্যায়ভিত্তিক data browser-এ cache হয়।':'Source: Fawaz Ahmed Hadith API · Chapter data is cached in this browser.'}</p></>;
