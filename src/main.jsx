@@ -186,7 +186,7 @@ function ReaderPage({page,setPage,surah,selectedSurah,bookmarks,addBookmark,goBa
  const directPdfUrl=`${A}Imdadia-Hafezi-Quran.pdf#page=${page}`;
  useEffect(()=>{
    let cancelled=false;
-   const loadingTask=pdfjsLib.getDocument({url:`${A}Imdadia-Hafezi-Quran.pdf`,rangeChunkSize:65536});
+   const loadingTask=pdfjsLib.getDocument({url:`${A}Imdadia-Hafezi-Quran.pdf`,disableRange:true,disableStream:true});
    loadingTask.promise.then(document=>{
      if(cancelled){document.destroy();return}
      setPdf(document);
