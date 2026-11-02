@@ -1,5 +1,8 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
+import * as pdfjsLib from 'pdfjs-dist';
+import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+pdfjsLib.GlobalWorkerOptions.workerSrc=pdfWorker;
 import {
   Home, BookOpen, Clock3, Compass, Heart, Headphones, Bookmark, Search, Settings,
   Moon, Sun, Menu, X, ChevronRight, ChevronLeft, Play, Pause, RotateCcw, Plus,
@@ -176,9 +179,57 @@ function QuranPage({isBn,search,setSearch,bookmarks,addBookmark,openReader}){
  </>;
 }
 function ReaderPage({page,setPage,surah,selectedSurah,bookmarks,addBookmark,goBack}){
- const pdfUrl=`${A}Imdadia-Hafezi-Quran.pdf#page=${page}&toolbar=0&navpanes=0`;
+ const [pdf,setPdf]=useState(null);
+ const [pdfLoading,setPdfLoading]=useState(true);
+ const [pdfError,setPdfError]=useState('');
+ const canvasRef=useRef(null);
  const directPdfUrl=`${A}Imdadia-Hafezi-Quran.pdf#page=${page}`;
- return <><div className="reader-toolbar"><button className="btn subtle" onClick={goBack}><ArrowLeft size={16}/> ফিরে যান</button><div className="reader-meta"><b>{selectedSurah?surah.bn+' · '+surah.ar:'ইমদাদিয়া হাফেজি কুরআন'}</b><small>পৃষ্ঠা {page} / ৬১৪</small></div><button className={`icon-btn ${bookmarks.includes(page)?'is-saved':''}`} onClick={()=>addBookmark(page)}><Bookmark size={18}/></button></div><div className="pdf-actions"><a className="btn subtle" href={directPdfUrl} target="_blank" rel="noreferrer"><ExternalLink size={15}/> PDF আলাদা ট্যাবে খুলুন</a></div><div className="pdf-frame"><iframe title="Imdadia Hafezi Quran PDF" src={pdfUrl} /></div><div className="reader-controls"><button className="btn subtle" disabled={page<=1} onClick={()=>setPage(page-1)}><ChevronLeft/> আগের পৃষ্ঠা</button><label>পৃষ্ঠা <input type="number" min="1" max="614" value={page} onChange={e=>setPage(Math.max(1,Math.min(614,Number(e.target.value)||1)))}/></label><button className="btn subtle" disabled={page>=614} onClick={()=>setPage(page+1)}>পরের পৃষ্ঠা <ChevronRight/></button></div><p className="hint">PDF দেখা না গেলে আলাদা ট্যাবে খুলুন।</p></>;
+ useEffect(()=>{
+   let cancelled=false;
+   const loadingTask=pdfjsLib.getDocument({url:`${A}Imdadia-Hafezi-Quran.pdf`,rangeChunkSize:65536});
+   loadingTask.promise.then(document=>{
+     if(cancelled){document.destroy();return}
+     setPdf(document);
+   }).catch(()=>{
+     if(!cancelled){setPdfError('PDF লোড করা যায়নি। আলাদা ট্যাবে খুলে দেখুন।');setPdfLoading(false)}
+   });
+   return()=>{cancelled=true;loadingTask.destroy()};
+ },[]);
+ useEffect(()=>{
+   if(!pdf||!canvasRef.current)return;
+   let cancelled=false,renderTask;
+   setPdfLoading(true);setPdfError('');
+   const renderPage=async()=>{
+     try{
+       const pdfPage=await pdf.getPage(page);
+       if(cancelled)return;
+       const canvas=canvasRef.current;
+       if(!canvas)return;
+       const containerWidth=canvas.parentElement?.clientWidth||600;
+       const baseViewport=pdfPage.getViewport({scale:1});
+       const scale=Math.min(Math.max((containerWidth-24)/baseViewport.width,0.5),1.8);
+       const viewport=pdfPage.getViewport({scale});
+       const pixelRatio=Math.min(window.devicePixelRatio||1,2);
+       canvas.width=Math.ceil(viewport.width*pixelRatio);
+       canvas.height=Math.ceil(viewport.height*pixelRatio);
+       canvas.style.width=`${viewport.width}px`;
+       canvas.style.height=`${viewport.height}px`;
+       const context=canvas.getContext('2d',{alpha:false});
+       if(!context)throw new Error('Canvas unavailable');
+       context.setTransform(pixelRatio,0,0,pixelRatio,0,0);
+       renderTask=pdfPage.render({canvasContext:context,viewport});
+       await renderTask.promise;
+       if(!cancelled)setPdfLoading(false);
+     }catch(error){
+       if(cancelled||error?.name==='RenderingCancelledException')return;
+       setPdfError('এই পৃষ্ঠা render করা যায়নি। PDF আলাদা ট্যাবে খুলুন।');
+       setPdfLoading(false);
+     }
+   };
+   renderPage();
+   return()=>{cancelled=true;renderTask?.cancel()};
+ },[pdf,page]);
+ return <><div className="reader-toolbar"><button className="btn subtle" onClick={goBack}><ArrowLeft size={16}/> ফিরে যান</button><div className="reader-meta"><b>{selectedSurah?surah.bn+' · '+surah.ar:'ইমদাদিয়া হাফেজি কুরআন'}</b><small>পৃষ্ঠা {page} / ৬১৪</small></div><button className={`icon-btn ${bookmarks.includes(page)?'is-saved':''}`} onClick={()=>addBookmark(page)}><Bookmark size={18}/></button></div><div className="pdf-actions"><a className="btn subtle" href={directPdfUrl} target="_blank" rel="noreferrer"><ExternalLink size={15}/> PDF আলাদা ট্যাবে খুলুন</a></div><div className="pdf-frame">{pdfError?<div className="pdf-status">{pdfError}</div>:<><canvas ref={canvasRef} className="pdf-canvas" aria-label={`কুরআন পৃষ্ঠা ${page}`}/>{pdfLoading&&<div className="pdf-status">কুরআনের পৃষ্ঠা লোড হচ্ছে…</div>}</>}</div><div className="reader-controls"><button className="btn subtle" disabled={page<=1} onClick={()=>setPage(page-1)}><ChevronLeft/> আগের পৃষ্ঠা</button><label>পৃষ্ঠা <input type="number" min="1" max="614" value={page} onChange={e=>setPage(Math.max(1,Math.min(614,Number(e.target.value)||1)))}/></label><button className="btn subtle" disabled={page>=614} onClick={()=>setPage(page+1)}>পরের পৃষ্ঠা <ChevronRight/></button></div><p className="hint">PDF দেখা না গেলে আলাদা ট্যাবে খুলুন।</p></>;
 }
 function PrayerPage({prayer,location,locate}){
  const times=['Fajr','Sunrise','Dhuhr','Asr','Maghrib','Isha'];const labels=['ফজর','সূর্যোদয়','যোহর','আসর','মাগরিব','ইশা'];
