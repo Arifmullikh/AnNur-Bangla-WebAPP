@@ -24,7 +24,7 @@ const navItems=[
 ];
 function App(){
  const [page,setPage]=useState('home');
- const [dark,setDark]=useState(readStore('annur-theme','dark')==='dark');
+ const [dark,setDark]=useState(()=>{const applied=localStorage.getItem('annur-dark-default-v1')==='1';if(!applied){localStorage.setItem('annur-theme',JSON.stringify('dark'));localStorage.setItem('annur-dark-default-v1','1');return true}return readStore('annur-theme','dark')==='dark'});
  const [lang,setLang]=useState(readStore('annur-lang','bn'));
  const [mobileMenu,setMobileMenu]=useState(false);
  const [lastPage,setLastPage]=useState(readStore('annur-last-page',2));
