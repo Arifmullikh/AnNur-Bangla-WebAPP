@@ -46,6 +46,7 @@ function App(){
  const [showNewJournal,setShowNewJournal]=useState(false);
  const [qibla,setQibla]=useState(null);
  const [orientation,setOrientation]=useState(null);
+ const [compassEnabled,setCompassEnabled]=useState(false);
  const [activeDua,setActiveDua]=useState(null);
  const [hadithBook,setHadithBook]=useState('all');
  const [hadithData,setHadithData]=useState([]);
@@ -88,7 +89,36 @@ function App(){
    navigator.geolocation.getCurrentPosition(pos=>{const l={lat:pos.coords.latitude,lon:pos.coords.longitude};setLocation(l);getPrayer(l.lat,l.lon);setQibla(bearingToKaaba(l.lat,l.lon));notify('অবস্থান পাওয়া গেছে')},()=>notify('Location permission দিন'))};
  const bearingToKaaba=(lat,lon)=>{const p1=lat*Math.PI/180,p2=21.4225*Math.PI/180,dl=(39.8262-lon)*Math.PI/180;const y=Math.sin(dl),x=Math.cos(p1)*Math.tan(p2)-Math.sin(p1)*Math.cos(dl);return (Math.atan2(y,x)*180/Math.PI+360)%360};
  useEffect(()=>{if(location&&!prayer)getPrayer(location.lat,location.lon)},[]);
- useEffect(()=>{const fn=e=>{if(typeof e.alpha==='number')setOrientation(e.alpha)};window.addEventListener('deviceorientationabsolute',fn,true);window.addEventListener('deviceorientation',fn,true);return()=>{window.removeEventListener('deviceorientationabsolute',fn,true);window.removeEventListener('deviceorientation',fn,true)}},[]);
+ useEffect(()=>{
+   if(!compassEnabled)return;
+   const fn=e=>{
+     const appleHeading=e.webkitCompassHeading;
+     const hasAbsoluteHeading=typeof e.alpha==='number'&&(e.absolute===true||e.type==='deviceorientationabsolute');
+     const heading=typeof appleHeading==='number'?appleHeading:(hasAbsoluteHeading?(360-e.alpha+360)%360:null);
+     if(heading!==null)setOrientation(heading);
+   };
+   window.addEventListener('deviceorientationabsolute',fn,true);
+   window.addEventListener('deviceorientation',fn,true);
+   return()=>{
+     window.removeEventListener('deviceorientationabsolute',fn,true);
+     window.removeEventListener('deviceorientation',fn,true);
+   };
+ },[compassEnabled]);
+ const startCompass=async()=>{
+   const OrientationEvent=window.DeviceOrientationEvent;
+   if(!OrientationEvent){notify('এই ডিভাইসে কম্পাস সেন্সর সমর্থিত নয়');return}
+   try{
+     if(typeof OrientationEvent.requestPermission==='function'){
+       const permission=await OrientationEvent.requestPermission();
+       if(permission!=='granted'){notify('কম্পাস ব্যবহারের অনুমতি দিন');return}
+     }
+     setOrientation(null);
+     setCompassEnabled(true);
+     notify('কম্পাস চালু হয়েছে—ফোন সমতল রাখুন');
+   }catch{
+     notify('কম্পাস ব্যবহারের অনুমতি পাওয়া যায়নি');
+   }
+ };
  const addJournal=()=>{if(!journalDraft.trim())return;setJournal(v=>[{id:Date.now(),title:journalTitle||'আমার নোট',body:journalDraft,date:new Date().toISOString()},...v]);setJournalDraft('');setJournalTitle('');setShowNewJournal(false);notify('জার্নাল সংরক্ষিত')};
  const renderPage=()=>{
  switch(page){
@@ -96,7 +126,7 @@ function App(){
  case 'quran':return <QuranPage isBn={isBn} search={search} setSearch={setSearch} bookmarks={bookmarks} addBookmark={addBookmark} openReader={openReader} />;
  case 'reader':return <ReaderPage page={readerPage} setPage={p=>{setReaderPage(p);setLastPage(p)}} surah={currentSurah} selectedSurah={selectedSurah} bookmarks={bookmarks} addBookmark={addBookmark} goBack={()=>go(selectedSurah?'quran':'home')}/>;
  case 'prayer':return <PrayerPage prayer={prayer} location={location} locate={locate}/>;
- case 'qibla':return <QiblaPage location={location} locate={locate} qibla={qibla??(location?bearingToKaaba(location.lat,location.lon):null)} orientation={orientation}/>;
+ case 'qibla':return <QiblaPage location={location} locate={locate} qibla={qibla??(location?bearingToKaaba(location.lat,location.lon):null)} orientation={orientation} startCompass={startCompass}/>;
  case 'tasbih':return <TasbihPage count={tasbih} setCount={setTasbih} goal={goal} setGoal={setGoal}/>;
  case 'duas':return <DuasPage data={ruqyahData} active={activeDua} setActive={setActiveDua}/>;
  case 'hadith':return <HadithPage data={hadithData} sections={hadithSections} book={hadithBook} setBook={setHadithBook} search={search} setSearch={setSearch}/>;
@@ -146,14 +176,17 @@ function QuranPage({isBn,search,setSearch,bookmarks,addBookmark,openReader}){
  </>;
 }
 function ReaderPage({page,setPage,surah,selectedSurah,bookmarks,addBookmark,goBack}){
- return <><div className="reader-toolbar"><button className="btn subtle" onClick={goBack}><ArrowLeft size={16}/> ফিরে যান</button><div className="reader-meta"><b>{selectedSurah?surah.bn+' · '+surah.ar:'ইমদাদিয়া হাফেজি কুরআন'}</b><small>পৃষ্ঠা {page} / ৬১৪</small></div><button className={`icon-btn ${bookmarks.includes(page)?'is-saved':''}`} onClick={()=>addBookmark(page)}><Bookmark size={18}/></button></div><div className="pdf-frame"><iframe title="Imdadia Hafezi Quran PDF" src={`${A}Imdadia-Hafezi-Quran.pdf#page=${page}&toolbar=0&navpanes=0`} /></div><div className="reader-controls"><button className="btn subtle" disabled={page<=1} onClick={()=>setPage(page-1)}><ChevronLeft/> আগের পৃষ্ঠা</button><label>পৃষ্ঠা <input type="number" min="1" max="614" value={page} onChange={e=>setPage(Math.max(1,Math.min(614,Number(e.target.value)||1)))}/></label><button className="btn subtle" disabled={page>=614} onClick={()=>setPage(page+1)}>পরের পৃষ্ঠা <ChevronRight/></button></div><p className="hint">PDF ভিউয়ারে পৃষ্ঠা নেভিগেশন আপনার ব্রাউজার অনুযায়ী ভিন্ন হতে পারে।</p></>;
+ const pdfUrl=`${A}Imdadia-Hafezi-Quran.pdf#page=${page}&toolbar=0&navpanes=0`;
+ const directPdfUrl=`${A}Imdadia-Hafezi-Quran.pdf#page=${page}`;
+ return <><div className="reader-toolbar"><button className="btn subtle" onClick={goBack}><ArrowLeft size={16}/> ফিরে যান</button><div className="reader-meta"><b>{selectedSurah?surah.bn+' · '+surah.ar:'ইমদাদিয়া হাফেজি কুরআন'}</b><small>পৃষ্ঠা {page} / ৬১৪</small></div><button className={`icon-btn ${bookmarks.includes(page)?'is-saved':''}`} onClick={()=>addBookmark(page)}><Bookmark size={18}/></button></div><div className="pdf-actions"><a className="btn subtle" href={directPdfUrl} target="_blank" rel="noreferrer"><ExternalLink size={15}/> PDF আলাদা ট্যাবে খুলুন</a></div><div className="pdf-frame"><iframe title="Imdadia Hafezi Quran PDF" src={pdfUrl} /></div><div className="reader-controls"><button className="btn subtle" disabled={page<=1} onClick={()=>setPage(page-1)}><ChevronLeft/> আগের পৃষ্ঠা</button><label>পৃষ্ঠা <input type="number" min="1" max="614" value={page} onChange={e=>setPage(Math.max(1,Math.min(614,Number(e.target.value)||1)))}/></label><button className="btn subtle" disabled={page>=614} onClick={()=>setPage(page+1)}>পরের পৃষ্ঠা <ChevronRight/></button></div><p className="hint">PDF দেখা না গেলে আলাদা ট্যাবে খুলুন।</p></>;
 }
 function PrayerPage({prayer,location,locate}){
  const times=['Fajr','Sunrise','Dhuhr','Asr','Maghrib','Isha'];const labels=['ফজর','সূর্যোদয়','যোহর','আসর','মাগরিব','ইশা'];
  return <><PageHead eyebrow="SALAH · DAILY" title="নামাজের সময়" desc="আপনার অবস্থান অনুযায়ী আজকের নামাজের সময়।" action={<button className="btn primary" onClick={locate}><MapPin size={16}/> অবস্থান নিন</button>}/>{!location&&<div className="notice">নামাজের সময় দেখাতে আপনার অবস্থানের অনুমতি দিন।</div>}<div className="prayer-date"><CalendarDays size={18}/><div><b>{prayer?.date?.readable||new Date().toLocaleDateString('bn-BD',{dateStyle:'full'})}</b><small>{prayer?.date?.hijri?.date||'হিজরি তারিখ লোড হচ্ছে'}</small></div></div><div className="prayer-grid">{times.map((t,i)=><div className={`prayer-card ${t==='Fajr'?'highlight':''}`} key={t}><span>{labels[i]}</span><b>{prayer?.timings?.[t]?.split(' ')[0]||'--:--'}</b><small>{t}</small></div>)}</div><p className="hint">সময় AlAdhan API থেকে গণনা করে দেখানো হয়। স্থানীয় মসজিদের সময়ের সঙ্গে সামান্য পার্থক্য হতে পারে।</p></>;
 }
-function QiblaPage({location,locate,qibla,orientation}){
- return <><PageHead eyebrow="DIRECTION" title="কিবলা কম্পাস" desc="মক্কা শরীফের কাবার দিক নির্ণয় করুন।" action={<button className="btn primary" onClick={locate}><MapPin size={16}/> Location</button>}/><div className="compass-wrap"><div className="compass"><div className="compass-n">N</div><div className="compass-e">E</div><div className="compass-s">S</div><div className="compass-w">W</div><div className="compass-needle" style={{transform:`rotate(${qibla??0}deg)`}}><div className="needle-tip"></div><div className="needle-tail"></div></div><div className="compass-center">🕋</div></div><h2>{qibla===null?'অবস্থান প্রয়োজন':`${Math.round(qibla)}°`}</h2><p>{location?'আপনার অবস্থান থেকে কিবলার দিক':'কিবলা নির্ণয়ের জন্য Location অনুমতি দিন'}</p>{orientation!==null&&<small>Device heading: {Math.round(orientation)}° · কম্পাসের জন্য ফোন সমতল রাখুন</small>}</div><div className="notice">সঠিক দিক পেতে ফোনের কম্পাস ক্যালিব্রেট করুন। কিছু ব্রাউজার Device Orientation API সমর্থন নাও করতে পারে।</div></>;
+function QiblaPage({location,locate,qibla,orientation,startCompass}){
+ const needleAngle=qibla===null?0:(qibla-(orientation??0)+360)%360;
+ return <><PageHead eyebrow="DIRECTION" title="কিবলা কম্পাস" desc="মক্কা শরীফের কাবার দিক নির্ণয় করুন।" action={<div className="qibla-actions"><button className="btn primary" onClick={locate}><MapPin size={16}/> Location</button><button className="btn subtle" onClick={startCompass}><Compass size={16}/> কম্পাস চালু</button></div>}/><div className="compass-wrap"><div className="compass"><div className="compass-n">N</div><div className="compass-e">E</div><div className="compass-s">S</div><div className="compass-w">W</div><div className="compass-needle" style={{transform:`rotate(${needleAngle}deg)`}}><div className="needle-tip"></div><div className="needle-tail"></div></div><div className="compass-center">🕋</div></div><h2>{qibla===null?'অবস্থান প্রয়োজন':`${Math.round(qibla)}°`}</h2><p>{!location?'কিবলা নির্ণয়ের জন্য Location অনুমতি দিন':orientation===null?'উত্তর থেকে কিবলার bearing। ফোনের কম্পাস চালু করলে তীর ফোনের দিক অনুযায়ী ঘুরবে।':'তীরটি ফোনের দিক থেকে কিবলার দিকে নির্দেশ করে।'}</p>{orientation!==null&&<small>ফোনের heading: {Math.round(orientation)}° · ফোন সমতল রাখুন</small>}</div><div className="notice">Location দিয়ে কিবলার bearing পাওয়া যায়। তীর ফোনের দিক অনুসরণ করতে Location-এর পাশাপাশি কম্পাস সেন্সর এবং browser permission-ও লাগবে।</div></>;
 }
 function TasbihPage({count,setCount,goal,setGoal}){
  const pct=Math.min(100,count/goal*100);
