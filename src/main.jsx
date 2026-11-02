@@ -190,7 +190,8 @@ function ReaderPage({page,setPage,surah,selectedSurah,bookmarks,addBookmark,goBa
    loadingTask.promise.then(document=>{
      if(cancelled){document.destroy();return}
      setPdf(document);
-   }).catch(()=>{
+   }).catch(error=>{
+     console.error('Quran PDF failed to load',error);
      if(!cancelled){setPdfError('PDF লোড করা যায়নি। আলাদা ট্যাবে খুলে দেখুন।');setPdfLoading(false)}
    });
    return()=>{cancelled=true;loadingTask.destroy()};
@@ -222,6 +223,7 @@ function ReaderPage({page,setPage,surah,selectedSurah,bookmarks,addBookmark,goBa
        if(!cancelled)setPdfLoading(false);
      }catch(error){
        if(cancelled||error?.name==='RenderingCancelledException')return;
+       console.error('Quran page render failed',error);
        setPdfError('এই পৃষ্ঠা render করা যায়নি। PDF আলাদা ট্যাবে খুলুন।');
        setPdfLoading(false);
      }
